@@ -1,0 +1,484 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Central Limit Theorem Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Layout: lab bench. One stacked canvas (population → sample → sample means) on a shared x-axis, controls above, readout column beside. */
+:root{
+  --bg:#f4f5f8; --surface:#ffffff; --ink:#1a2130; --muted:#5a6375; --rule:#d6dae3;
+  --pop:#2a7a76; --pop-fill:rgba(42,122,118,.16);
+  --dot:#c06f10; --mean:#3a49b8; --mean-fill:rgba(58,73,184,.55); --curve:#c23a2f;
+  --btn:#1a2130; --btn-ink:#ffffff;
+  --font-display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11141a; --surface:#191d25; --ink:#e6e9ef; --muted:#9aa3b5; --rule:#2b313c;
+    --pop:#5cc0ba; --pop-fill:rgba(92,192,186,.16);
+    --dot:#f0a64a; --mean:#8f9dff; --mean-fill:rgba(143,157,255,.55); --curve:#ff6e60;
+    --btn:#e6e9ef; --btn-ink:#11141a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11141a; --surface:#191d25; --ink:#e6e9ef; --muted:#9aa3b5; --rule:#2b313c;
+  --pop:#5cc0ba; --pop-fill:rgba(92,192,186,.16);
+  --dot:#f0a64a; --mean:#8f9dff; --mean-fill:rgba(143,157,255,.55); --curve:#ff6e60;
+  --btn:#e6e9ef; --btn-ink:#11141a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:20px 28px;
+}
+.wrap{max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:16px}
+header{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 16px}
+h1{font-family:var(--font-display); font-weight:600; font-size:clamp(24px, 3.2vw, 32px); margin:0; text-wrap:balance; letter-spacing:-.01em}
+header p{margin:0; color:var(--muted)}
+
+.controls{display:flex; flex-wrap:wrap; gap:14px 24px; align-items:flex-end;
+  background:var(--surface); border:1px solid var(--rule); border-radius:10px; padding:14px 16px}
+.group{display:flex; flex-direction:column; gap:6px; min-width:0}
+.label{font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+.seg{display:flex; flex-wrap:wrap; border:1px solid var(--rule); border-radius:8px; overflow:hidden}
+.seg button{border:0; border-right:1px solid var(--rule); background:transparent; color:var(--ink);
+  font:500 14px var(--font-body); padding:7px 11px; cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--pop); color:var(--surface)}
+.nrow{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.nrow input[type=range]{width:180px; max-width:100%; accent-color:var(--mean)}
+.nval{font:500 18px var(--font-mono); font-variant-numeric:tabular-nums; min-width:4.5ch}
+.chips{display:flex; gap:4px}
+.chips button{border:1px solid var(--rule); background:transparent; color:var(--muted); border-radius:6px;
+  font:500 12px var(--font-mono); padding:3px 7px; cursor:pointer}
+.chips button:hover{color:var(--ink); border-color:var(--muted)}
+.actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.btn{border:1px solid var(--btn); background:var(--btn); color:var(--btn-ink); border-radius:8px;
+  font:600 14px var(--font-body); padding:8px 14px; cursor:pointer}
+.btn.ghost{background:transparent; color:var(--ink); border-color:var(--rule)}
+.btn.ghost:hover{border-color:var(--muted)}
+.toggle{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--ink); cursor:pointer; padding-left:4px}
+.toggle input{accent-color:var(--curve); width:16px; height:16px}
+button:focus-visible, input:focus-visible{outline:2px solid var(--mean); outline-offset:2px}
+
+.main{display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:16px}
+@media (max-width:820px){ .main{grid-template-columns:minmax(0,1fr)} }
+.stage{background:var(--surface); border:1px solid var(--rule); border-radius:10px; height:clamp(440px, 66vh, 700px); min-width:0; position:relative}
+canvas{display:block; width:100%; height:100%}
+
+aside{display:flex; flex-direction:column; gap:14px; min-width:0}
+.card{background:var(--surface); border:1px solid var(--rule); border-radius:10px; padding:12px 14px}
+.card h2{margin:0 0 8px; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:8px}
+.sw{width:10px; height:10px; border-radius:2px; display:inline-block}
+dl{margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 12px}
+dt{color:var(--muted)}
+dd{margin:0; text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-weight:500}
+.legend{font-size:13px; color:var(--muted); display:flex; flex-direction:column; gap:6px}
+.legend span{display:flex; align-items:center; gap:8px}
+.line{width:18px; height:0; border-top:3px solid var(--curve)}
+.hint{font-size:12px; color:var(--muted)}
+kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); border-radius:4px; padding:0 4px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Central Limit Theorem</h1>
+    <p>Draw samples of size <i>n</i>, average each one, and watch where the averages pile up.</p>
+  </header>
+
+  <div class="controls">
+    <div class="group">
+      <span class="label" id="popLbl">Population</span>
+      <div class="seg" id="popSeg" role="group" aria-labelledby="popLbl"></div>
+    </div>
+    <div class="group">
+      <label class="label" for="n">Sample size</label>
+      <div class="nrow">
+        <span class="nval" id="nOut">n = 30</span>
+        <input type="range" id="n" min="1" max="100" value="30">
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label" id="spdLbl">Animation speed</span>
+      <div class="seg" id="spdSeg" role="group" aria-labelledby="spdLbl"></div>
+    </div>
+    <div class="group">
+      <span class="label">Draw</span>
+      <div class="actions">
+        <button class="btn" id="one">Draw one sample</button>
+        <button class="btn ghost" id="play">Play</button>
+        <button class="btn ghost" id="bulk">+1,000 samples</button>
+        <button class="btn ghost" id="reset">Reset</button>
+        <label class="toggle"><input type="checkbox" id="curve"> Normal curve</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stage" id="stage"><canvas id="cv" aria-label="Population density, current sample, and histogram of sample means"></canvas></div>
+    <aside>
+      <div class="card">
+        <h2><span class="sw" style="background:var(--pop)"></span>Population</h2>
+        <dl><dt>Mean μ</dt><dd id="sMu">—</dd><dt>SD σ</dt><dd id="sSig">—</dd><dt>Skewness γ</dt><dd id="sSk">—</dd></dl>
+      </div>
+      <div class="card">
+        <h2><span class="sw" style="background:var(--curve)"></span>Theory for x̄</h2>
+        <dl><dt>Mean</dt><dd id="tMu">—</dd><dt>SD σ/√n</dt><dd id="tSe">—</dd><dt>Skewness γ/√n</dt><dd id="tSk">—</dd></dl>
+      </div>
+      <div class="card">
+        <h2><span class="sw" style="background:var(--mean)"></span>Simulated x̄'s</h2>
+        <dl><dt>Samples</dt><dd id="oN">0</dd><dt>Mean</dt><dd id="oMu">—</dd><dt>SD</dt><dd id="oSd">—</dd><dt>Skewness</dt><dd id="oSk">—</dd></dl>
+      </div>
+      <div class="card legend">
+        <span><span class="line" style="border-color:var(--mean)"></span>Smoothed histogram of x̄'s</span>
+        <span><span class="line"></span>Normal(μ, σ/√n)</span>        <span class="hint"><kbd>Space</kbd> play&nbsp;· <kbd>D</kbd> draw&nbsp;· <kbd>B</kbd> +1,000</span>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const g = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / s;
+  const POPS = {
+    uniform: { label: 'Uniform',      f: x => 1 },
+    right:   { label: 'Right-skewed', f: x => { const t = x / 10; return Math.sqrt(t) * (1 - t) ** 4; } },
+    left:    { label: 'Left-skewed',  f: x => { const t = x / 10; return t ** 4 * Math.sqrt(1 - t); } },
+    bimodal: { label: 'Bimodal',      f: x => 0.6 * g(x, 2.5, 0.9) + 0.4 * g(x, 7.2, 0.9) },
+    ushape:  { label: 'U-shaped',     f: x => (x - 5) ** 2 + 0.6 },
+    expo:    { label: 'Exponential',  f: x => Math.exp(-x / 1.2) },
+    weird:   { label: 'Weird', f: x => {
+      const b = (m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2);
+      return 1.0 * b(0.7, 0.18) + 0.45 * b(1.9, 0.45) + (x > 3.2 && x < 4.6 ? 0.3 : 0)
+        + 0.85 * b(6.1, 0.1) + 0.55 * b(6.8, 0.1) + 0.35 * b(7.5, 0.1)
+        + (x > 8.6 && x < 9.8 ? 0.55 * (x - 8.6) : 0);
+    } },
+    rare:    { label: 'Rare large values', f: x => 0.95 * Math.exp(-x / 0.6) / 0.6 + 0.05 * g(x, 8, 0.7) / Math.sqrt(2 * Math.PI) }
+  };
+  const XMAX = 10, G = 2001, DX = XMAX / (G - 1);
+  const XS = new Float64Array(G); for (let i = 0; i < G; i++) XS[i] = i * DX;
+  let pdf = new Float64Array(G), cdf = new Float64Array(G), mu = 0, sigma = 1, skew = 0, pmax = 1;
+
+  function build(key) {
+    const f = POPS[key].f;
+    for (let i = 0; i < G; i++) pdf[i] = Math.max(0, f(XS[i]));
+    cdf[0] = 0;
+    for (let i = 1; i < G; i++) cdf[i] = cdf[i - 1] + 0.5 * (pdf[i] + pdf[i - 1]) * DX;
+    const tot = cdf[G - 1];
+    let m = 0, m2 = 0, m3 = 0; pmax = 0;
+    for (let i = 0; i < G; i++) {
+      pdf[i] /= tot; cdf[i] /= tot; pmax = Math.max(pmax, pdf[i]);
+      const w = (i === 0 || i === G - 1 ? 0.5 : 1) * pdf[i] * DX;
+      m += XS[i] * w; m2 += XS[i] * XS[i] * w; m3 += XS[i] ** 3 * w;
+    }
+    mu = m; sigma = Math.sqrt(m2 - m * m);
+    skew = (m3 - 3 * m * m2 + 2 * m ** 3) / sigma ** 3;
+  }
+  function draw1() {
+    const u = Math.random(); let lo = 0, hi = G - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cdf[mid] < u) lo = mid; else hi = mid; }
+    const c0 = cdf[lo], c1 = cdf[hi];
+    return XS[lo] + (c1 > c0 ? (u - c0) / (c1 - c0) : 0.5) * DX;
+  }
+
+  // ---------- state ----------
+  let popKey = 'right', n = 30, showCurve = false;
+  let counts, nbins, binw, N = 0, sum = 0, sum2 = 0, sum3 = 0;
+  let cur = null, playing = false, wantOne = false, speed = 1;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function reset() {
+    const se = sigma / Math.sqrt(n);
+    nbins = Math.ceil(XMAX / Math.max(0.005, se / 40)); binw = XMAX / nbins; kde = null;
+    counts = new Float64Array(nbins); N = 0; sum = 0; sum2 = 0; sum3 = 0; cur = null; wantOne = false;
+    // display histogram: bins of width SE/2, one bin centered on μ
+    hb = se / 2; hk0 = Math.floor(-mu / hb) - 1;
+    hcounts = new Float64Array(Math.ceil(XMAX / hb) + 4); yDisp = 0;
+    setPlaying(false); updateStats(); dirty = true;
+  }
+  let hb = 1, hk0 = 0, hcounts = new Float64Array(1), yDisp = 0;
+  function addMean(m) {
+    counts[Math.min(nbins - 1, Math.max(0, Math.floor(m / binw)))]++;
+    hcounts[Math.min(hcounts.length - 1, Math.max(0, Math.round((m - mu) / hb) - hk0))]++;
+    N++; sum += m; sum2 += m * m; sum3 += m * m * m; kde = null;
+  }
+  // Gaussian kernel density of the x̄'s (binned), Silverman's robust bandwidth
+  let kde = null;
+  function getKDE() {
+    if (kde) return kde;
+    const dens = new Float64Array(nbins); let max = 0, lo = 0, hi = nbins - 1;
+    if (N) {
+      const m = sum / N, sd = Math.sqrt(Math.max(0, sum2 / N - m * m));
+      let c = 0, q1 = null, q3 = null;
+      for (let i = 0; i < nbins; i++) {
+        c += counts[i];
+        if (q1 === null && c >= N * 0.25) q1 = (i + 0.5) * binw;
+        if (q3 === null && c >= N * 0.75) { q3 = (i + 0.5) * binw; break; }
+      }
+      let spread = Math.min(sd, (q3 - q1) / 1.34);
+      if (!(spread > 0)) spread = sd > 0 ? sd : sigma / Math.sqrt(n);
+      const h = Math.max(0.7 * spread * Math.pow(N, -0.2), 0.6 * hb, binw);
+      const R = Math.ceil(4 * h / binw), K = new Float64Array(R + 1);
+      for (let r = 0; r <= R; r++) { const z = r * binw / h; K[r] = Math.exp(-0.5 * z * z); }
+      for (let i = 0; i < nbins; i++) if (counts[i]) {
+        const a = Math.max(0, i - R), b = Math.min(nbins - 1, i + R);
+        for (let j = a; j <= b; j++) dens[j] += counts[i] * K[Math.abs(j - i)];
+      }
+      const norm = 1 / (N * h * Math.sqrt(2 * Math.PI));
+      for (let j = 0; j < nbins; j++) { dens[j] *= norm; if (dens[j] > max) max = dens[j]; }
+      while (lo < nbins - 1 && dens[lo] < max * 1e-3) lo++;
+      while (hi > 0 && dens[hi] < max * 1e-3) hi--;
+    }
+    return (kde = { dens, max, lo, hi });
+  }
+  function newSample() {
+    const pts = new Array(n); let s = 0;
+    for (let i = 0; i < n; i++) { const x = draw1(); s += x; pts[i] = { x, j: Math.random() }; }
+    return { pts, mean: s / n, phase: 'dots', t: 0 };
+  }
+  function durations() {
+    if (reduce) return { dots: 0, hold: 0, drop: 0 };
+    if (!playing) return { dots: 900 / speed, hold: 350 / speed, drop: 450 / speed };
+    const k = (N < 8 ? 0.55 : N < 30 ? 0.3 : 0.16) / speed;
+    return { dots: 900 * k, hold: 300 * k, drop: 450 * k };
+  }
+
+  // ---------- canvas ----------
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), stage = document.getElementById('stage');
+  let W = 0, H = 0, dirty = true, C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['ink', 'muted', 'rule', 'pop', 'pop-fill', 'dot', 'mean', 'mean-fill', 'curve', 'surface'])
+      C[k] = cs.getPropertyValue('--' + k).trim();
+    C.mono = cs.getPropertyValue('--font-mono').trim(); C.body = cs.getPropertyValue('--font-body').trim();
+  }
+  function geo() {
+    const small = W < 520, padL = small ? 40 : 56, padR = small ? 14 : 24;
+    const popTop = 40, popBot = H * 0.27;
+    const sTop = popBot + 40, sBot = H * 0.44;
+    const hTop = sBot + 44, hBot = H - 30;
+    return { small, padL, padR, popTop, popBot, sTop, sBot, hTop, hBot,
+      X: v => padL + (v / XMAX) * (W - padL - padR) };
+  }
+  function resize() {
+    const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); dirty = true;
+  }
+  new ResizeObserver(resize).observe(stage);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); dirty = true; });
+  new MutationObserver(() => { readColors(); dirty = true; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+
+  const ease = p => p < 0 ? 0 : p > 1 ? 1 : 1 - (1 - p) ** 3;
+  const easeIn = p => p < 0 ? 0 : p > 1 ? 1 : p * p;
+  const fmt = v => v.toFixed(2);
+
+  function render() {
+    if (!W) return;
+    const { small, padL, padR, X, popTop, popBot, sTop, sBot, hTop, hBot } = geo();
+    ctx.clearRect(0, 0, W, H);
+
+    const title = (txt, y, right) => {
+      ctx.fillStyle = C.ink; ctx.font = `600 ${small ? 13 : 14}px ${C.body}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(txt, padL, y);
+      if (right) { ctx.fillStyle = C.muted; ctx.font = `500 ${small ? 12 : 13}px ${C.mono}`; ctx.textAlign = 'right'; ctx.fillText(right, W - padR, y); }
+    };
+    const baseline = y => { ctx.strokeStyle = C.rule; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y + .5); ctx.lineTo(W - padR, y + .5); ctx.stroke(); };
+    const vline = (x, y0, y1, color, dash, w = 1.5) => {
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash(dash || []);
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.restore();
+    };
+
+    // 1. population
+    title('Population', popTop - 14, `μ = ${fmt(mu)}   σ = ${fmt(sigma)}`);
+    const py = v => popBot - (v / pmax) * (popBot - popTop);
+    ctx.beginPath(); ctx.moveTo(X(0), popBot);
+    for (let i = 0; i < G; i += 4) ctx.lineTo(X(XS[i]), py(pdf[i]));
+    ctx.lineTo(X(XMAX), py(pdf[G - 1])); ctx.lineTo(X(XMAX), popBot); ctx.closePath();
+    ctx.fillStyle = C['pop-fill']; ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i < G; i += 4) { const x = X(XS[i]), y = py(pdf[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.strokeStyle = C.pop; ctx.lineWidth = 2; ctx.stroke();
+    baseline(popBot);
+    vline(X(mu), popTop - 4, popBot, C.pop, [4, 4], 1.25);
+
+    // 2. current sample
+    const D = durations();
+    title(cur ? `Sample ${cur.phase === 'done' ? N : N + 1}` : 'Sample', sTop - 14,
+      cur && cur.phase !== 'dots' ? `x̄ = ${fmt(cur.mean)}` : `n = ${n}`);
+    baseline(sBot);
+    if (!cur) {
+      ctx.fillStyle = C.muted; ctx.font = `400 14px ${C.body}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`Press “Draw one sample” to pick ${n} value${n > 1 ? 's' : ''} at random from the population`, W / 2, (sTop + sBot) / 2);
+    } else {
+      const r = n > 60 ? 3 : n > 25 ? 3.5 : 4.5;
+      ctx.fillStyle = C.dot; ctx.globalAlpha = 0.85;
+      const span = Math.max(1, D.dots), fall = span * 0.3;
+      cur.pts.forEach((p, i) => {
+        const ty = sTop + r + 2 + p.j * (sBot - sTop - 2 * r - 4);
+        let y = ty;
+        if (cur.phase === 'dots' && D.dots > 0) {
+          const start = (i / n) * span * 0.7, prog = (cur.t - start) / fall;
+          if (prog <= 0) return;
+          y = popBot + (ty - popBot) * ease(prog);
+        }
+        ctx.beginPath(); ctx.arc(X(p.x), y, r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      if (cur.phase !== 'dots') vline(X(cur.mean), sTop - 6, sBot, C.mean, null, 3);
+    }
+
+    // 3. histogram of sample means
+    const se = sigma / Math.sqrt(n), peak = 1 / (se * Math.sqrt(2 * Math.PI));
+    // Count scale (not density) so bars and smoother grow from the bottom as samples accumulate.
+    const K = getKDE(), toCount = N * hb;        // density → expected count per histogram bin
+    let barMax = 0; for (let i = 0; i < hcounts.length; i++) if (hcounts[i] > barMax) barMax = hcounts[i];
+    const floorY = 100 * hb * peak * 1.1;          // axis starts sized for ~100 samples
+    const target = Math.max(floorY, barMax * 1.1, K.max * toCount * 1.05, showCurve ? peak * toCount * 1.1 : 0);
+    if (!yDisp) yDisp = target;
+    else { yDisp += (target - yDisp) * 0.18; if (Math.abs(target - yDisp) > target * 0.003) dirty = true; else yDisp = target; }
+    const hy = c => hBot - (c / yDisp) * (hBot - hTop);
+    // y-axis (counts): nice ticks, faint gridlines
+    {
+      const raw = yDisp / 4, p10 = 10 ** Math.floor(Math.log10(raw)), f = raw / p10;
+      const step = Math.max(1, (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p10);
+      ctx.font = `400 12px ${C.mono}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      for (let v = 0; v <= yDisp; v += step) {
+        const y = Math.round(hy(v)) + .5;
+        if (v > 0) { ctx.strokeStyle = C.rule; ctx.globalAlpha = 0.6; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke(); ctx.globalAlpha = 1; }
+        ctx.fillStyle = C.muted; ctx.fillText(v.toLocaleString(), padL - 8, y);
+      }
+      ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(padL - .5, hTop); ctx.lineTo(padL - .5, hBot); ctx.stroke();
+      ctx.save(); ctx.translate(small ? 10 : 14, (hTop + hBot) / 2); ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.muted; ctx.font = `500 12px ${C.body}`;
+      ctx.fillText('Number of samples', 0, 0); ctx.restore();
+    }
+    title('Sample means x̄', hTop - 14, `${N.toLocaleString()} sample${N === 1 ? '' : 's'}`);
+    if (N) {
+      ctx.lineWidth = 1;
+      for (let i = 0; i < hcounts.length; i++) if (hcounts[i]) {
+        const c = mu + (i + hk0) * hb, x0 = X(c - hb / 2), x1 = X(c + hb / 2), y = hy(hcounts[i]);
+        ctx.globalAlpha = 0.18; ctx.fillStyle = C.mean; ctx.fillRect(x0, y, x1 - x0, hBot - y);
+        ctx.globalAlpha = 0.7; ctx.strokeStyle = C.muted; ctx.strokeRect(Math.round(x0) + .5, Math.round(y) + .5, Math.round(x1 - x0), Math.round(hBot - y));
+      }
+      ctx.globalAlpha = 1;
+      const cx = j => X((j + 0.5) * binw);
+      ctx.beginPath();
+      for (let j = K.lo; j <= K.hi; j++) { const y = hy(K.dens[j] * toCount); j === K.lo ? ctx.moveTo(cx(j), y) : ctx.lineTo(cx(j), y); }
+      ctx.strokeStyle = C.mean; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    vline(X(mu), hTop - 4, hBot, C.muted, [4, 4], 1.25);
+    if (showCurve && N) {
+      ctx.beginPath(); let started = false;
+      for (let k = 0; k <= 1000; k++) {
+        const v = k * XMAX / 1000, z = (v - mu) / se, d = peak * Math.exp(-0.5 * z * z);
+        if (d < peak * 1e-3) { started = false; continue; }
+        started ? ctx.lineTo(X(v), hy(d * toCount)) : ctx.moveTo(X(v), hy(d * toCount)); started = true;
+      }
+      ctx.strokeStyle = C.curve; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+    baseline(hBot);
+
+    if (cur && cur.phase === 'drop') {   // x̄ falls onto the top of its histogram bar
+      const p = D.drop ? easeIn(cur.t / D.drop) : 1;
+      const idx = Math.min(hcounts.length - 1, Math.max(0, Math.round((cur.mean - mu) / hb) - hk0));
+      const y = sBot + (hy(hcounts[idx] + 1) - 5 - sBot) * p;
+      ctx.fillStyle = C.mean; ctx.beginPath(); ctx.arc(X(cur.mean), y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // shared axis
+    ctx.fillStyle = C.muted; ctx.font = `400 12px ${C.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.strokeStyle = C.rule; ctx.lineWidth = 1;
+    const ax = hBot;
+    for (let t = 0; t <= XMAX; t += small ? 2 : 1) {
+      ctx.beginPath(); ctx.moveTo(X(t) + .5, ax); ctx.lineTo(X(t) + .5, ax + 5); ctx.stroke();
+      ctx.fillText(String(t), X(t), ax + 8);
+    }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(64, now - last); last = now;
+    if ((wantOne || playing) && (!cur || cur.phase === 'done')) { cur = newSample(); wantOne = false; }
+    if (cur && cur.phase !== 'done') {
+      const D = durations(); cur.t += dt; dirty = true;
+      if (cur.phase === 'dots' && cur.t >= D.dots) { cur.phase = 'hold'; cur.t = 0; }
+      if (cur.phase === 'hold' && cur.t >= D.hold) { cur.phase = 'drop'; cur.t = 0; }
+      if (cur.phase === 'drop' && cur.t >= D.drop) { addMean(cur.mean); cur.phase = 'done'; cur.t = 0; updateStats(); }
+    }
+    if (dirty) { dirty = false; render(); }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- UI ----------
+  const $ = id => document.getElementById(id);
+  const seg = $('popSeg');
+  for (const [k, p] of Object.entries(POPS)) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = p.label; b.dataset.k = k;
+    b.setAttribute('aria-pressed', k === popKey); b.onclick = () => setPop(k); seg.appendChild(b);
+  }
+  function setPop(k) {
+    popKey = k; [...seg.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.k === k));
+    build(k); reset();
+  }
+  const slider = $('n');
+  function setN(v) { n = v; slider.value = v; $('nOut').textContent = `n = ${v}`; reset(); }
+  slider.addEventListener('input', () => setN(+slider.value));
+  const chips = $('chips');
+  [1, 2, 5, 10, 30, 100].forEach(v => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = v; b.setAttribute('aria-label', `n = ${v}`);
+    b.onclick = () => setN(v); chips.appendChild(b);
+  });
+  const spdSeg = $('spdSeg');
+  [['Slow', 0.4], ['Normal', 1], ['Fast', 2.5], ['Very fast', 6]].forEach(([lbl, v]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = lbl; b.dataset.v = v;
+    b.setAttribute('aria-pressed', v === speed);
+    b.onclick = () => { speed = v; [...spdSeg.children].forEach(c => c.setAttribute('aria-pressed', +c.dataset.v === v)); };
+    spdSeg.appendChild(b);
+  });
+  function setPlaying(p) { playing = p; $('play').textContent = p ? 'Pause' : 'Play'; }
+  $('one').onclick = () => { setPlaying(false); if (cur && cur.phase !== 'done') return; wantOne = true; };
+  $('play').onclick = () => setPlaying(!playing);
+  $('bulk').onclick = bulk;
+  $('reset').onclick = reset;
+  $('curve').onchange = e => { showCurve = e.target.checked; dirty = true; };
+  function bulk() {
+    if (cur && cur.phase !== 'done') { addMean(cur.mean); }
+    let s = null;
+    for (let k = 0; k < 1000; k++) { s = newSample(); addMean(s.mean); }
+    s.phase = 'done'; cur = s; updateStats(); dirty = true;
+  }
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input, button')) return;
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === 'd' || e.key === 'D') $('one').click();
+    else if (e.key === 'b' || e.key === 'B') bulk();
+  });
+
+  function updateStats() {
+    const se = sigma / Math.sqrt(n);
+    $('sMu').textContent = fmt(mu); $('sSig').textContent = fmt(sigma);
+    $('tMu').textContent = fmt(mu); $('tSe').textContent = fmt(se);
+    $('oN').textContent = N.toLocaleString();
+    $('oMu').textContent = N ? fmt(sum / N) : '—';
+    $('oSd').textContent = N > 1 ? fmt(Math.sqrt(Math.max(0, (sum2 - sum * sum / N) / (N - 1)))) : '—';
+    $('sSk').textContent = fmt(skew); $('tSk').textContent = fmt(skew / Math.sqrt(n));
+    if (N > 2) {
+      const m = sum / N, c2 = sum2 / N - m * m, c3 = sum3 / N - 3 * m * sum2 / N + 2 * m ** 3;
+      $('oSk').textContent = c2 > 1e-12 ? fmt(c3 / c2 ** 1.5) : '—';
+    } else $('oSk').textContent = '—';
+  }
+
+  readColors(); build(popKey); reset(); resize();
+  if (document.fonts) document.fonts.ready.then(() => { dirty = true; });
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
