@@ -124,15 +124,15 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
     <aside>
       <div class="card">
         <h2><span class="sw" style="background:var(--pop)"></span>Population</h2>
-        <dl><dt>Mean μ</dt><dd id="sMu">—</dd><dt>SD σ</dt><dd id="sSig">—</dd><dt>Skewness γ</dt><dd id="sSk">—</dd></dl>
+        <dl><dt>Mean μ</dt><dd id="sMu">—</dd><dt>SD σ</dt><dd id="sSig">—</dd></dl>
       </div>
       <div class="card">
         <h2><span class="sw" style="background:var(--curve)"></span>Theory for x̄</h2>
-        <dl><dt>Mean</dt><dd id="tMu">—</dd><dt>SD σ/√n</dt><dd id="tSe">—</dd><dt>Skewness γ/√n</dt><dd id="tSk">—</dd></dl>
+        <dl><dt>Mean</dt><dd id="tMu">—</dd><dt>SD σ/√n</dt><dd id="tSe">—</dd></dl>
       </div>
       <div class="card">
         <h2><span class="sw" style="background:var(--mean)"></span>Simulated x̄'s</h2>
-        <dl><dt>Samples</dt><dd id="oN">0</dd><dt>Mean</dt><dd id="oMu">—</dd><dt>SD</dt><dd id="oSd">—</dd><dt>Skewness</dt><dd id="oSk">—</dd></dl>
+        <dl><dt>Samples</dt><dd id="oN">0</dd><dt>Mean</dt><dd id="oMu">—</dd><dt>SD</dt><dd id="oSd">—</dd></dl>
       </div>
       <div class="card legend">
         <span><span class="line" style="border-color:var(--mean)"></span>Smoothed histogram of x̄'s</span>
@@ -154,9 +154,9 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
     expo:    { label: 'Exponential',  f: x => Math.exp(-x / 1.2) },
     weird:   { label: 'Weird', f: x => {
       const b = (m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2);
-      return 1.0 * b(0.7, 0.18) + 0.45 * b(1.9, 0.45) + (x > 3.2 && x < 4.6 ? 0.3 : 0)
-        + 0.85 * b(6.1, 0.1) + 0.55 * b(6.8, 0.1) + 0.35 * b(7.5, 0.1)
-        + (x > 8.6 && x < 9.8 ? 0.55 * (x - 8.6) : 0);
+      return 1.2 * b(0.6, 0.15) + 0.7 * b(1.5, 0.35) + (x > 2.2 && x < 3.0 ? 0.35 : 0)
+        + 0.3 * b(4.2, 0.08) + 0.2 * b(4.9, 0.08) + 0.12 * b(5.6, 0.08)
+        + (x > 8.6 && x < 9.8 ? 0.12 * (x - 8.6) : 0);
     } },
     rare:    { label: 'Rare large values', f: x => 0.95 * Math.exp(-x / 0.6) / 0.6 + 0.05 * g(x, 8, 0.7) / Math.sqrt(2 * Math.PI) }
   };
@@ -222,7 +222,8 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
       }
       let spread = Math.min(sd, (q3 - q1) / 1.34);
       if (!(spread > 0)) spread = sd > 0 ? sd : sigma / Math.sqrt(n);
-      const h = Math.max(0.7 * spread * Math.pow(N, -0.2), 0.6 * hb, binw);
+      // the minimum width keeps early curves smooth, then shrinks so the peak isn't flattened
+      const h = Math.max(0.7 * spread * Math.pow(N, -0.2), 0.6 * hb * Math.min(1, Math.sqrt(30 / N)), binw);
       const R = Math.ceil(4 * h / binw), K = new Float64Array(R + 1);
       for (let r = 0; r <= R; r++) { const z = r * binw / h; K[r] = Math.exp(-0.5 * z * z); }
       for (let i = 0; i < nbins; i++) if (counts[i]) {
@@ -258,7 +259,7 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
     C.mono = cs.getPropertyValue('--font-mono').trim(); C.body = cs.getPropertyValue('--font-body').trim();
   }
   function geo() {
-    const small = W < 520, padL = small ? 40 : 56, padR = small ? 14 : 24;
+    const small = W < 520, padL = small ? 58 : 66, padR = small ? 14 : 24;
     const popTop = 40, popBot = H * 0.27;
     const sTop = popBot + 40, sBot = H * 0.44;
     const hTop = sBot + 44, hBot = H - 30;
@@ -351,10 +352,10 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
       for (let v = 0; v <= yDisp; v += step) {
         const y = Math.round(hy(v)) + .5;
         if (v > 0) { ctx.strokeStyle = C.rule; ctx.globalAlpha = 0.6; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke(); ctx.globalAlpha = 1; }
-        ctx.fillStyle = C.muted; ctx.fillText(v.toLocaleString(), padL - 8, y);
+        ctx.fillStyle = C.muted; ctx.fillText(v >= 10000 ? (v / 1000).toLocaleString() + 'k' : v.toLocaleString(), padL - 8, y);
       }
       ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(padL - .5, hTop); ctx.lineTo(padL - .5, hBot); ctx.stroke();
-      ctx.save(); ctx.translate(small ? 10 : 14, (hTop + hBot) / 2); ctx.rotate(-Math.PI / 2);
+      ctx.save(); ctx.translate(small ? 8 : 10, (hTop + hBot) / 2); ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.muted; ctx.font = `500 12px ${C.body}`;
       ctx.fillText('Number of samples', 0, 0); ctx.restore();
     }
@@ -468,11 +469,6 @@ kbd{font-family:var(--font-mono); font-size:11px; border:1px solid var(--rule); 
     $('oN').textContent = N.toLocaleString();
     $('oMu').textContent = N ? fmt(sum / N) : '—';
     $('oSd').textContent = N > 1 ? fmt(Math.sqrt(Math.max(0, (sum2 - sum * sum / N) / (N - 1)))) : '—';
-    $('sSk').textContent = fmt(skew); $('tSk').textContent = fmt(skew / Math.sqrt(n));
-    if (N > 2) {
-      const m = sum / N, c2 = sum2 / N - m * m, c3 = sum3 / N - 3 * m * sum2 / N + 2 * m ** 3;
-      $('oSk').textContent = c2 > 1e-12 ? fmt(c3 / c2 ** 1.5) : '—';
-    } else $('oSk').textContent = '—';
   }
 
   readColors(); build(popKey); reset(); resize();
